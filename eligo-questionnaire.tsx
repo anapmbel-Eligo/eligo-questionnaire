@@ -1,0 +1,865 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { ChevronRight, ChevronLeft, Save, Download, Eye, BarChart3, Settings } from 'lucide-react';
+
+// ─────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────
+
+interface Participant {
+  id: string;
+  createdAt: string;
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  // Respuestas abiertas
+  q1_dias: string;
+  q2_cambios: string;
+  q3_sabeHacer: string;
+  q4_enseniar: string;
+  q5_pendiente: string;
+  q6_confianza: string;
+  q7_organiza: string;
+  // Selecciones
+  q8_busca: 'gente' | 'construir' | 'aprender' | 'compartir' | '';
+  q9_movimiento: 'cualquiera' | 'sentarse' | 'cortas' | 'accesible' | '';
+  q10_restricciones: string;
+  // Clasificación automática (agregada después)
+  valores?: string[];
+  lifeStage?: string;
+  completado: boolean;
+}
+
+type TabView = 'cuestionario' | 'dashboard' | 'concierge';
+
+// ─────────────────────────────────────────────────────────────
+// MAIN APP
+// ─────────────────────────────────────────────────────────────
+
+export default function EligoApp() {
+  const [currentTab, setCurrentTab] = useState<TabView>('cuestionario');
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
+
+  // Cargar participantes del localStorage al montar
+  useEffect(() => {
+    const saved = localStorage.getItem('eligo_participants');
+    if (saved) {
+      setParticipants(JSON.parse(saved));
+    }
+  }, []);
+
+  // Guardar participantes en localStorage cada vez que cambia
+  useEffect(() => {
+    localStorage.setItem('eligo_participants', JSON.stringify(participants));
+  }, [participants]);
+
+  // Inicializar un nuevo participante
+  const startNewParticipant = () => {
+    const newId = `p_${Date.now()}`;
+    const newParticipant: Participant = {
+      id: newId,
+      createdAt: new Date().toISOString(),
+      q1_dias: '',
+      q2_cambios: '',
+      q3_sabeHacer: '',
+      q4_enseniar: '',
+      q5_pendiente: '',
+      q6_confianza: '',
+      q7_organiza: '',
+      q8_busca: '',
+      q9_movimiento: '',
+      q10_restricciones: '',
+      completado: false,
+    };
+    setCurrentParticipant(newParticipant);
+    setCurrentQuestion(0);
+    setShowContactForm(false);
+  };
+
+  const saveAndContinue = () => {
+    if (!currentParticipant) return;
+
+    if (currentQuestion < 9) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setShowContactForm(true);
+    }
+  };
+
+  const saveContact = (nombre: string, email: string, telefono: string) => {
+    if (!currentParticipant) return;
+
+    const completed = {
+      ...currentParticipant,
+      nombre,
+      email,
+      telefono,
+      completado: true,
+      valores: extractValues(currentParticipant),
+      lifeStage: inferLifeStage(currentParticipant),
+    };
+
+    setParticipants([...participants, completed]);
+    setCurrentParticipant(null);
+    setCurrentQuestion(0);
+    setShowContactForm(false);
+  };
+
+  if (currentTab === 'cuestionario' && currentParticipant) {
+    return (
+      <QuestionnaireView
+        participant={currentParticipant}
+        setParticipant={setCurrentParticipant}
+        currentQuestion={currentQuestion}
+        setCurrentQuestion={setCurrentQuestion}
+        saveAndContinue={saveAndContinue}
+        showContactForm={showContactForm}
+        saveContact={saveContact}
+        onBack={() => {
+          setCurrentParticipant(null);
+          setCurrentTab('cuestionario');
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
+      {/* Header */}
+      <header className="border-b border-amber-200 bg-white/60 backdrop-blur-sm">
+        <div className="mx-auto max-w-5xl px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-serif font-bold text-amber-900">ELIGO</h1>
+              <p className="text-sm text-amber-700 mt-1">I choose. Comunidad y pertenencia después de los 60.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentTab('cuestionario')}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  currentTab === 'cuestionario'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                }`}
+              >
+                Cuestionario
+              </button>
+              <button
+                onClick={() => setCurrentTab('dashboard')}
+                className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                  currentTab === 'dashboard'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                }`}
+              >
+                <BarChart3 size={18} />
+                Matching
+              </button>
+              <button
+                onClick={() => setCurrentTab('concierge')}
+                className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                  currentTab === 'concierge'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                }`}
+              >
+                <Settings size={18} />
+                Concierge
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="mx-auto max-w-5xl px-6 py-12">
+        {currentTab === 'cuestionario' && (
+          <CuestionarioHome
+            onStart={startNewParticipant}
+            participantCount={participants.length}
+            completedCount={participants.filter((p) => p.completado).length}
+          />
+        )}
+        {currentTab === 'dashboard' && <DashboardView participants={participants} />}
+        {currentTab === 'concierge' && <ConciergeView participants={participants} />}
+      </main>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// QUESTIONNAIRE HOME
+// ─────────────────────────────────────────────────────────────
+
+function CuestionarioHome({
+  onStart,
+  participantCount,
+  completedCount,
+}: {
+  onStart: () => void;
+  participantCount: number;
+  completedCount: number;
+}) {
+  return (
+    <div className="space-y-8">
+      {/* Intro */}
+      <div className="rounded-2xl bg-white p-8 border border-amber-200">
+        <h2 className="text-2xl font-serif font-bold text-amber-900 mb-3">Cuéntanos tu historia</h2>
+        <p className="text-amber-800 leading-relaxed mb-4">
+          Este cuestionario no tiene respuestas correctas. Solo queremos saber quién eres, qué haces, qué
+          sabes, y qué buscas en este momento. Tus respuestas nos ayudan a conectarte con personas que compartan
+          algo contigo.
+        </p>
+        <p className="text-sm text-amber-700 mb-6">
+          Toma el tiempo que necesites. Puedes volver en cualquier momento.
+        </p>
+        <button
+          onClick={onStart}
+          className="inline-flex items-center gap-2 bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition"
+        >
+          Empezar
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
+      {/* Stats */}
+      {participantCount > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl bg-white p-6 border border-amber-200">
+            <div className="text-3xl font-bold text-amber-600">{participantCount}</div>
+            <p className="text-sm text-amber-800 mt-1">Cuestionarios iniciados</p>
+          </div>
+          <div className="rounded-xl bg-white p-6 border border-amber-200">
+            <div className="text-3xl font-bold text-green-600">{completedCount}</div>
+            <p className="text-sm text-green-800 mt-1">Completados</p>
+          </div>
+        </div>
+      )}
+
+      {/* Cómo funciona */}
+      <div className="rounded-2xl bg-white p-8 border border-amber-200">
+        <h3 className="text-lg font-serif font-bold text-amber-900 mb-4">Cómo funciona</h3>
+        <ul className="space-y-3 text-amber-800">
+          <li className="flex gap-3">
+            <span className="font-bold text-amber-600">1.</span>
+            <span>Responde 10 preguntas sobre tu vida, lo que sabes, y lo que buscas.</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="font-bold text-amber-600">2.</span>
+            <span>Nos ayudas con algunos datos de contacto.</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="font-bold text-amber-600">3.</span>
+            <span>Nos comunicamos contigo para conocerte mejor en una llamada.</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="font-bold text-amber-600">4.</span>
+            <span>Te conectamos con gente que comparta valores contigo.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// QUESTIONNAIRE VIEW
+// ─────────────────────────────────────────────────────────────
+
+const QUESTIONS = [
+  {
+    id: 'q1',
+    num: 1,
+    title: '¿Cómo son tus días ahora?',
+    subtitle: 'No hay respuesta correcta. Cuéntanos lo que haces normalmente, aunque te parezca poco interesante.',
+    placeholder: 'Me levanto temprano, casi siempre...',
+    field: 'q1_dias' as const,
+  },
+  {
+    id: 'q2',
+    num: 2,
+    title: '¿Qué ha cambiado en tu vida en los últimos años?',
+    subtitle: 'Puede ser algo grande o algo pequeño. Un trabajo, una casa, una persona, una costumbre.',
+    placeholder: 'Hace unos años...',
+    field: 'q2_cambios' as const,
+  },
+  {
+    id: 'q3',
+    num: 3,
+    title: '¿Qué sabes hacer bien?',
+    subtitle: 'Algo de tu trabajo, de tu casa, de tus manos, de tratar con la gente. Lo que sea.',
+    placeholder: 'Se me da bien...',
+    field: 'q3_sabeHacer' as const,
+  },
+  {
+    id: 'q4',
+    num: 4,
+    title: '¿Hay algo que sabes y que te gustaría que alguien más aprendiera?',
+    subtitle: 'Algo que te daría un poco de lástima que se perdiera.',
+    placeholder: 'Me gustaría que alguien supiera...',
+    field: 'q4_enseniar' as const,
+  },
+  {
+    id: 'q5',
+    num: 5,
+    title: '¿Hay algo que te quedaste con ganas de hacer?',
+    subtitle: 'Puede ser de hace mucho o de hace poco. Algo que sigue ahí.',
+    placeholder: 'Siempre quise...',
+    field: 'q5_pendiente' as const,
+  },
+  {
+    id: 'q6',
+    num: 6,
+    title: '¿Piensa en alguien con quien te sientes en confianza. ¿Qué tiene esa persona?',
+    subtitle: 'No hace falta decir quién es.',
+    placeholder: 'Es alguien que...',
+    field: 'q6_confianza' as const,
+  },
+  {
+    id: 'q7',
+    num: 7,
+    title: '¿Te ha tocado ser la persona que organiza?',
+    subtitle: 'Una comida, un viaje, una colecta, un grupo, una fiesta. Sin importar si salió bien.',
+    placeholder: 'Sí, una vez... / La verdad no, siempre...',
+    field: 'q7_organiza' as const,
+  },
+  {
+    id: 'q8',
+    num: 8,
+    title: '¿Qué buscas más en este momento?',
+    type: 'select',
+    field: 'q8_busca' as const,
+    options: [
+      { value: 'gente', label: 'Gente con quien contar' },
+      { value: 'construir', label: 'Construir algo con otros' },
+      { value: 'aprender', label: 'Aprender cosas nuevas' },
+      { value: 'compartir', label: 'Compartir lo que sé' },
+    ],
+  },
+  {
+    id: 'q9',
+    num: 9,
+    title: '¿Qué tipo de plan te acomoda?',
+    subtitle: 'Para no invitarte a algo que no te acomode.',
+    type: 'select',
+    field: 'q9_movimiento' as const,
+    options: [
+      { value: 'cualquiera', label: 'Le entro a lo que sea — caminar, subir escaleras, estar de pie un buen rato' },
+      { value: 'sentarse', label: 'Camino bien, pero prefiero que haya dónde sentarse' },
+      { value: 'cortas', label: 'Distancias cortas y sin muchas escaleras' },
+      { value: 'accesible', label: 'Uso bastón, andadera o silla — necesito rampa y baño accesible' },
+    ],
+  },
+  {
+    id: 'q10',
+    num: 10,
+    title: '¿Hay algo que debamos tomar en cuenta para que un plan te funcione?',
+    subtitle:
+      'Horarios, traslados, alguien a quien cuidas, algo de salud, lo que sea. Puedes saltarte esta.',
+    placeholder: 'Los martes no puedo porque... / Después de las seis ya no...',
+    field: 'q10_restricciones' as const,
+  },
+];
+
+function QuestionnaireView({
+  participant,
+  setParticipant,
+  currentQuestion,
+  setCurrentQuestion,
+  saveAndContinue,
+  showContactForm,
+  saveContact,
+  onBack,
+}: any) {
+  const q = QUESTIONS[currentQuestion];
+  const isAnswered = participant[q.field] || false;
+
+  const handleInputChange = (value: string) => {
+    setParticipant({ ...participant, [q.field]: value });
+  };
+
+  const handleSelectChange = (value: string) => {
+    setParticipant({ ...participant, [q.field]: value });
+  };
+
+  if (showContactForm) {
+    return (
+      <ContactFormView
+        onSubmit={saveContact}
+        onBack={() => {
+          setCurrentQuestion(currentQuestion - 1);
+          // Dar opción de volver
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Progress bar */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-amber-700">
+            Pregunta {currentQuestion + 1} de {QUESTIONS.length}
+          </h2>
+          <button
+            onClick={onBack}
+            className="text-amber-600 hover:text-amber-700 font-medium text-sm flex items-center gap-1"
+          >
+            <ChevronLeft size={16} />
+            Volver
+          </button>
+        </div>
+        <div className="h-1 bg-amber-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-300"
+            style={{ width: `${((currentQuestion + 1) / QUESTIONS.length) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Question */}
+      <div className="bg-white rounded-2xl p-8 border border-amber-200 mb-6">
+        <h3 className="text-2xl font-serif font-bold text-amber-900 mb-2">{q.title}</h3>
+        {q.subtitle && <p className="text-amber-700 mb-6">{q.subtitle}</p>}
+
+        {q.type === 'select' ? (
+          <div className="space-y-3">
+            {q.options.map((option: any) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelectChange(option.value)}
+                className={`w-full text-left p-4 rounded-lg border-2 transition font-medium ${
+                  participant[q.field] === option.value
+                    ? 'border-amber-600 bg-amber-50 text-amber-900'
+                    : 'border-amber-200 bg-white text-amber-900 hover:border-amber-400'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <textarea
+            value={participant[q.field]}
+            onChange={(e) => handleInputChange(e.target.value)}
+            placeholder={q.placeholder}
+            className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none font-serif text-amber-900 placeholder-amber-400"
+            rows={5}
+          />
+        )}
+
+        {/* Optional indicator for q10 */}
+        {currentQuestion === 9 && (
+          <p className="text-xs text-amber-600 mt-3">* Opcional. Puedes dejar esto en blanco.</p>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between items-center">
+        <button
+          onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
+          disabled={currentQuestion === 0}
+          className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 transition ${
+            currentQuestion === 0
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-amber-700 hover:bg-amber-50 border border-amber-200'
+          }`}
+        >
+          <ChevronLeft size={18} />
+          Anterior
+        </button>
+
+        <div className="text-sm text-amber-600">
+          {isAnswered ? (
+            <span className="flex items-center gap-1">
+              <Save size={16} />
+              Guardado
+            </span>
+          ) : (
+            <span>Cuéntanos algo para continuar</span>
+          )}
+        </div>
+
+        <button
+          onClick={saveAndContinue}
+          disabled={!isAnswered}
+          className={`px-6 py-2 rounded-lg font-medium flex items-center gap-2 transition ${
+            isAnswered
+              ? 'bg-amber-600 text-white hover:bg-amber-700'
+              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          {currentQuestion === QUESTIONS.length - 1 ? 'Terminar' : 'Siguiente'}
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTACT FORM
+// ─────────────────────────────────────────────────────────────
+
+function ContactFormView({ onSubmit, onBack }: any) {
+  const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
+
+  const canSubmit = nombre.trim().length > 0;
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-2xl p-8 border border-amber-200 mb-6">
+        <h3 className="text-2xl font-serif font-bold text-amber-900 mb-2">Casi listo</h3>
+        <p className="text-amber-700 mb-6">Cuéntanos cómo podemos contactarte.</p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-amber-900 mb-2">
+              Nombre *
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="Tu nombre"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-amber-900 mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="tu@email.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-amber-900 mb-2">
+              Teléfono
+            </label>
+            <input
+              type="tel"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="55 1234 5678"
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-amber-600 mt-6">
+          * Requerido. Los otros campos son opcionales. Tus datos se guardan de forma segura y confidencial.
+        </p>
+      </div>
+
+      <div className="flex justify-between">
+        <button
+          onClick={onBack}
+          className="px-6 py-2 rounded-lg font-medium text-amber-700 hover:bg-amber-50 border border-amber-200 transition flex items-center gap-2"
+        >
+          <ChevronLeft size={18} />
+          Anterior
+        </button>
+
+        <button
+          onClick={() => onSubmit(nombre, email, telefono)}
+          disabled={!canSubmit}
+          className={`px-6 py-2 rounded-lg font-medium transition ${
+            canSubmit
+              ? 'bg-amber-600 text-white hover:bg-amber-700'
+              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Enviar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DASHBOARD VIEW — MATCHING
+// ─────────────────────────────────────────────────────────────
+
+interface Match {
+  id1: string;
+  id2: string;
+  name1: string;
+  name2: string;
+  score: number;
+  reasons: string[];
+}
+
+function DashboardView({ participants }: { participants: Participant[] }) {
+  const completed = participants.filter((p) => p.completado);
+
+  if (completed.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-amber-700 text-lg">No hay cuestionarios completados todavía.</p>
+      </div>
+    );
+  }
+
+  const matches = computeMatches(completed);
+  const topMatches = matches.sort((a, b) => b.score - a.score).slice(0, 10);
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-white rounded-2xl p-8 border border-amber-200">
+        <h2 className="text-2xl font-serif font-bold text-amber-900 mb-2">Compatibilidades</h2>
+        <p className="text-amber-700 mb-6">
+          Los pares más afines según valores, búsqueda, y vida stage. Los emparejamientos se calculan
+          automáticamente basado en el análisis cualitativo de las respuestas.
+        </p>
+
+        <div className="grid gap-4">
+          {topMatches.length === 0 ? (
+            <p className="text-amber-600">Necesitamos al menos 2 participantes para ver compatibilidades.</p>
+          ) : (
+            topMatches.map((match, idx) => (
+              <div key={`${match.id1}-${match.id2}`} className="p-4 border border-amber-200 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-serif font-bold text-amber-900">
+                    {match.name1} + {match.name2}
+                  </h3>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-amber-600">{Math.round(match.score)}%</div>
+                    <p className="text-xs text-amber-600">Compatibilidad</p>
+                  </div>
+                </div>
+                <ul className="text-sm text-amber-800 space-y-1">
+                  {match.reasons.map((reason, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="text-amber-600">•</span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Participantes */}
+      <div className="bg-white rounded-2xl p-8 border border-amber-200">
+        <h3 className="text-lg font-serif font-bold text-amber-900 mb-4">Participantes ({completed.length})</h3>
+        <div className="grid gap-3 max-h-80 overflow-y-auto">
+          {completed.map((p) => (
+            <div key={p.id} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <p className="font-medium text-amber-900">{p.nombre || 'Sin nombre'}</p>
+              <p className="text-xs text-amber-700 mt-1">
+                Busca: <span className="font-medium">{p.q8_busca}</span>
+              </p>
+              {p.valores && <p className="text-xs text-amber-600 mt-1">Valores: {p.valores.join(', ')}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Export */}
+      <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200">
+        <button className="flex items-center gap-2 text-amber-700 hover:text-amber-900 font-medium">
+          <Download size={18} />
+          Descargar resultados
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONCIERGE VIEW — IAR
+// ─────────────────────────────────────────────────────────────
+
+function ConciergeView({ participants }: { participants: Participant[] }) {
+  const completed = participants.filter((p) => p.completado);
+
+  if (completed.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-amber-700 text-lg">No hay cuestionarios completados todavía.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl p-8 border border-amber-200">
+        <h2 className="text-2xl font-serif font-bold text-amber-900 mb-2">Panel del Concierge</h2>
+        <p className="text-amber-700 mb-6">
+          Vista operacional. Aquí se registra el Índice de Activación Relacional (IAR) después de la llamada
+          diagnóstica, y se asignan playbooks.
+        </p>
+
+        <div className="space-y-4">
+          {completed.map((p) => (
+            <div key={p.id} className="p-4 border border-amber-200 rounded-lg bg-amber-50 hover:bg-amber-100 transition cursor-pointer">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-serif font-bold text-amber-900">{p.nombre || 'Sin nombre'}</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    {p.email || '—'} | {p.telefono || '—'}
+                  </p>
+                </div>
+                <button className="px-3 py-1 bg-amber-600 text-white text-xs font-medium rounded hover:bg-amber-700 transition">
+                  <Eye size={14} className="inline mr-1" />
+                  Ver perfil
+                </button>
+              </div>
+
+              {/* Placeholder para IAR (se completa en llamada) */}
+              <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-amber-600">
+                <p>Índice de Activación Relacional: <span className="font-medium italic">Pendiente de llamada</span></p>
+                <p>Playbook asignado: —</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
+
+function extractValues(participant: Participant): string[] {
+  const valores: string[] = [];
+
+  // Pregunta 4: enseñanza → legado
+  if (participant.q4_enseniar && participant.q4_enseniar.length > 10) {
+    valores.push('legado');
+  }
+
+  // Pregunta 5: pendiente → reinvención
+  if (participant.q5_pendiente && participant.q5_pendiente.length > 10) {
+    valores.push('reinvención');
+  }
+
+  // Pregunta 7: organización → liderazgo/propósito
+  if (participant.q7_organiza && participant.q7_organiza.toLowerCase().includes('sí')) {
+    valores.push('liderazgo');
+  }
+
+  // Pregunta 8: busca
+  if (participant.q8_busca === 'gente') valores.push('pertenencia');
+  if (participant.q8_busca === 'construir') valores.push('propósito');
+  if (participant.q8_busca === 'aprender') valores.push('crecimiento');
+  if (participant.q8_busca === 'compartir') valores.push('contribución');
+
+  return Array.from(new Set(valores));
+}
+
+function inferLifeStage(participant: Participant): string {
+  // Heurística simple basada en cambios recientes y búsqueda
+  const cambiosRecientes = participant.q2_cambios.length > 20;
+  const busca = participant.q8_busca;
+
+  if (cambiosRecientes && (busca === 'construir' || busca === 'compartir')) {
+    return 'transición_activa';
+  }
+  if (busca === 'aprender' || busca === 'gente') {
+    return 'reactivacion';
+  }
+  return 'estable';
+}
+
+function computeMatches(participants: Participant[]): Match[] {
+  const matches: Match[] = [];
+
+  for (let i = 0; i < participants.length; i++) {
+    for (let j = i + 1; j < participants.length; j++) {
+      const p1 = participants[i];
+      const p2 = participants[j];
+
+      const score = calculateMatchScore(p1, p2);
+      const reasons = generateMatchReasons(p1, p2);
+
+      if (score > 30) {
+        matches.push({
+          id1: p1.id,
+          id2: p2.id,
+          name1: p1.nombre || 'P' + i,
+          name2: p2.nombre || 'P' + j,
+          score,
+          reasons,
+        });
+      }
+    }
+  }
+
+  return matches;
+}
+
+function calculateMatchScore(p1: Participant, p2: Participant): number {
+  let score = 0;
+
+  // Valores compartidos
+  const vals1 = p1.valores || [];
+  const vals2 = p2.valores || [];
+  const sharedVals = vals1.filter((v) => vals2.includes(v)).length;
+  score += sharedVals * 15;
+
+  // Búsquedas complementarias (uno enseña, otro aprende)
+  if (
+    (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
+    (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
+  ) {
+    score += 20;
+  }
+
+  // Life stage similar
+  if (p1.lifeStage === p2.lifeStage) {
+    score += 10;
+  }
+
+  // Banda de movimiento compatible (ambos con restricciones o ambos sin)
+  const p1LowMobility = ['cortas', 'accesible'].includes(p1.q9_movimiento);
+  const p2LowMobility = ['cortas', 'accesible'].includes(p2.q9_movimiento);
+  if (p1LowMobility === p2LowMobility) {
+    score += 5;
+  }
+
+  return Math.min(score, 100);
+}
+
+function generateMatchReasons(p1: Participant, p2: Participant): string[] {
+  const reasons: string[] = [];
+
+  const vals1 = p1.valores || [];
+  const vals2 = p2.valores || [];
+  const shared = vals1.filter((v) => vals2.includes(v));
+
+  if (shared.length > 0) {
+    reasons.push(`Ambos valoran: ${shared.join(', ')}`);
+  }
+
+  if (
+    (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
+    (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
+  ) {
+    reasons.push(`Uno quiere compartir conocimiento, el otro está interesado en aprender`);
+  }
+
+  if (p1.lifeStage === p2.lifeStage && p1.lifeStage) {
+    reasons.push(`Similar momento de vida: ${p1.lifeStage.replace('_', ' ')}`);
+  }
+
+  return reasons;
+}
