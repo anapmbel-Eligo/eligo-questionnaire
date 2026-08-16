@@ -591,7 +591,7 @@ function ContactFormView({ onSubmit, onBack }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// DASHBOARD VIEW — MATCHING
+// DASHBOARD VIEW — MATCHING (MEJORADO VISUALMENTE)
 // ─────────────────────────────────────────────────────────────
 
 interface Match {
@@ -608,75 +608,153 @@ function DashboardView({ participants }: { participants: Participant[] }) {
 
   if (completed.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-amber-700 text-lg">No hay cuestionarios completados todavía.</p>
+      <div className="text-center py-16">
+        <div className="bg-white rounded-2xl p-12 border border-amber-200 inline-block">
+          <p className="text-amber-900 text-lg font-serif font-bold mb-2">Invita a Personas a Responder</p>
+          <p className="text-amber-700">El dashboard se llenará de vida cuando tengamos cuestionarios completados.</p>
+        </div>
       </div>
     );
   }
 
   const matches = computeMatches(completed);
-  const topMatches = matches.sort((a, b) => b.score - a.score).slice(0, 10);
+  const topMatches = matches.sort((a, b) => b.score - a.score).slice(0, 12);
 
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-2xl p-8 border border-amber-200">
-        <h2 className="text-2xl font-serif font-bold text-amber-900 mb-2">Compatibilidades</h2>
-        <p className="text-amber-700 mb-6">
-          Los pares más afines según valores, búsqueda, y vida stage. Los emparejamientos se calculan
-          automáticamente basado en el análisis cualitativo de las respuestas.
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-3xl font-serif font-bold text-amber-900 mb-2">Compatibilidades Automáticas</h2>
+        <p className="text-amber-700 text-lg">
+          Personas que están listas para conectar según valores, búsqueda, y momento de vida
         </p>
+      </div>
 
-        <div className="grid gap-4">
-          {topMatches.length === 0 ? (
-            <p className="text-amber-600">Necesitamos al menos 2 participantes para ver compatibilidades.</p>
-          ) : (
-            topMatches.map((match, idx) => (
-              <div key={`${match.id1}-${match.id2}`} className="p-4 border border-amber-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-serif font-bold text-amber-900">
-                    {match.name1} + {match.name2}
-                  </h3>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-amber-600">{Math.round(match.score)}%</div>
-                    <p className="text-xs text-amber-600">Compatibilidad</p>
-                  </div>
-                </div>
-                <ul className="text-sm text-amber-800 space-y-1">
-                  {match.reasons.map((reason, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="text-amber-600">•</span>
-                      <span>{reason}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-amber-600 text-white rounded-xl p-6 text-center">
+          <div className="text-3xl font-bold">{completed.length}</div>
+          <p className="text-sm text-amber-100 mt-1">Personas respondieron</p>
+        </div>
+        <div className="bg-blue-500 text-white rounded-xl p-6 text-center">
+          <div className="text-3xl font-bold">{topMatches.length}</div>
+          <p className="text-sm text-blue-100 mt-1">Pares compatibles</p>
+        </div>
+        <div className="bg-amber-900 text-white rounded-xl p-6 text-center">
+          <div className="text-3xl font-bold">
+            {topMatches.length > 0 ? Math.round(topMatches[0].score) : '—'}%
+          </div>
+          <p className="text-sm text-amber-100 mt-1">Compatibilidad máxima</p>
         </div>
       </div>
 
-      {/* Participantes */}
+      {/* Matches Grid */}
+      {topMatches.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 border border-amber-200 text-center">
+          <p className="text-amber-600 font-medium">Necesitamos al menos 2 participantes para calcular compatibilidades.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {topMatches.map((match) => {
+            // Alterna colores: terracota, aqua, café (basado en score)
+            const colors = [
+              'bg-red-700', // terracota
+              'bg-blue-500', // aqua
+              'bg-amber-900', // café oscuro
+            ];
+            const scoreIndex = Math.floor(match.score / 30) % 3;
+            const bgColor = colors[scoreIndex];
+            const textLight = 'text-white';
+
+            return (
+              <div
+                key={`${match.id1}-${match.id2}`}
+                className={`${bgColor} rounded-2xl p-8 shadow-lg hover:shadow-xl transition`}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h3 className={`text-2xl font-serif font-bold ${textLight} mb-1`}>
+                      {match.name1}
+                    </h3>
+                    <p className={`${bgColor === 'bg-blue-500' ? 'text-blue-100' : 'text-white/80'} text-sm`}>
+                      +
+                    </p>
+                    <h3 className={`text-2xl font-serif font-bold ${textLight} mt-1`}>
+                      {match.name2}
+                    </h3>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-4xl font-bold ${textLight}`}>
+                      {Math.round(match.score)}%
+                    </div>
+                    <p className={`text-xs ${bgColor === 'bg-blue-500' ? 'text-blue-100' : 'text-white/70'} mt-1`}>
+                      Compatible
+                    </p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className={`h-2 rounded-full ${bgColor === 'bg-blue-500' ? 'bg-blue-600' : 'bg-white/30'} mb-6 overflow-hidden`}>
+                  <div
+                    className={`h-full ${bgColor === 'bg-blue-500' ? 'bg-blue-200' : 'bg-white'}`}
+                    style={{ width: `${match.score}%` }}
+                  />
+                </div>
+
+                {/* Reasons */}
+                <div className="space-y-3">
+                  {match.reasons.map((reason, i) => (
+                    <div key={i} className="flex gap-3">
+                      <span className={`text-lg flex-shrink-0 ${textLight}`}>✓</span>
+                      <p className={`text-sm ${textLight} leading-relaxed`}>{reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Participantes Section */}
       <div className="bg-white rounded-2xl p-8 border border-amber-200">
-        <h3 className="text-lg font-serif font-bold text-amber-900 mb-4">Participantes ({completed.length})</h3>
-        <div className="grid gap-3 max-h-80 overflow-y-auto">
+        <h3 className="text-2xl font-serif font-bold text-amber-900 mb-6">
+          Quiénes Respondieron ({completed.length})
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {completed.map((p) => (
-            <div key={p.id} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <p className="font-medium text-amber-900">{p.nombre || 'Sin nombre'}</p>
-              <p className="text-xs text-amber-700 mt-1">
-                Busca: <span className="font-medium">{p.q8_busca}</span>
+            <div key={p.id} className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 hover:border-amber-400 transition">
+              <p className="font-serif font-bold text-amber-900 text-lg">{p.nombre || 'Sin nombre'}</p>
+              <p className="text-xs text-amber-700 mt-2">
+                <span className="font-medium">Busca:</span> {p.q8_busca}
               </p>
-              {p.valores && <p className="text-xs text-amber-600 mt-1">Valores: {p.valores.join(', ')}</p>}
+              {p.valores && p.valores.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {p.valores.map((valor, i) => (
+                    <span key={i} className="text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded-full font-medium">
+                      {valor}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
       </div>
 
       {/* Export */}
-      <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200">
-        <button className="flex items-center gap-2 text-amber-700 hover:text-amber-900 font-medium">
-          <Download size={18} />
-          Descargar resultados
-        </button>
+      <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-2xl p-8 border border-amber-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-serif font-bold text-amber-900 mb-1">Exportar Datos</h3>
+            <p className="text-amber-700 text-sm">Descarga los resultados del matching para análisis</p>
+          </div>
+          <button className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition">
+            <Download size={18} />
+            Descargar
+          </button>
+        </div>
       </div>
     </div>
   );
