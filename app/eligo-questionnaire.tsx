@@ -3,17 +3,24 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, Save, Download, Eye, BarChart3, Settings } from 'lucide-react';
 
+// Importar Supabase
+import { createClient } from '@supabase/supabase-js';
+
+// Inicializar Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 // ─────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────
 
 interface Participant {
-  id: string;
-  createdAt: string;
+  id?: string;
+  createdAt?: string;
   nombre?: string;
   email?: string;
   telefono?: string;
-  // Respuestas abiertas
   q1_dias: string;
   q2_cambios: string;
   q3_sabeHacer: string;
@@ -21,11 +28,9 @@ interface Participant {
   q5_pendiente: string;
   q6_confianza: string;
   q7_organiza: string;
-  // Selecciones
   q8_busca: 'gente' | 'construir' | 'aprender' | 'compartir' | '';
   q9_movimiento: 'cualquiera' | 'sentarse' | 'cortas' | 'accesible' | '';
   q10_restricciones: string;
-  // Clasificación automática (agregada después)
   valores?: string[];
   lifeStage?: string;
   completado: boolean;
@@ -33,36 +38,58 @@ interface Participant {
 
 type TabView = 'cuestionario' | 'dashboard' | 'concierge';
 
-// ─────────────────────────────────────────────────────────────
-// MAIN APP
-// ─────────────────────────────────────────────────────────────
-
 export default function EligoApp() {
   const [currentTab, setCurrentTab] = useState<TabView>('cuestionario');
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [showContactForm, setShowContactForm] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Cargar participantes del localStorage al montar
   useEffect(() => {
-    const saved = localStorage.getItem('eligo_participants');
-    if (saved) {
-      setParticipants(JSON.parse(saved));
-    }
+    loadParticipantsFromSupabase();
   }, []);
 
-  // Guardar participantes en localStorage cada vez que cambia
-  useEffect(() => {
-    localStorage.setItem('eligo_participants', JSON.stringify(participants));
-  }, [participants]);
+  const loadParticipantsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('completado', true);
 
-  // Inicializar un nuevo participante
+      if (error) throw error;
+
+      const mappedData = (data || []).map((row: any) => ({
+        id: row.id,
+        createdAt: row.created_at,
+        nombre: row.nombre,
+        email: row.email,
+        telefono: row.telefono,
+        q1_dias: row.q1_dias || '',
+        q2_cambios: row.q2_cambios || '',
+        q3_sabeHacer: row.q3_sabeHacer || '',
+        q4_enseniar: row.q4_enseniar || '',
+        q5_pendiente: row.q5_pendiente || '',
+        q6_confianza: row.q6_confianza || '',
+        q7_organiza: row.q7_organiza || '',
+        q8_busca: row.q8_busca || '',
+        q9_movimiento: row.q9_movimiento || '',
+        q10_restricciones: row.q10_restricciones || '',
+        valores: row.valores || [],
+        lifeStage: row.lifeStage,
+        completado: true,
+      }));
+
+      setParticipants(mappedData);
+    } catch (error) {
+      console.error('Error loading from Supabase:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const startNewParticipant = () => {
-    const newId = `p_${Date.now()}`;
     const newParticipant: Participant = {
-      id: newId,
-      createdAt: new Date().toISOString(),
       q1_dias: '',
       q2_cambios: '',
       q3_sabeHacer: '',
@@ -90,10 +117,10 @@ export default function EligoApp() {
     }
   };
 
-  const saveContact = (nombre: string, email: string, telefono: string) => {
+  const saveContact = async (nombre: string, email: string, telefono: string) => {
     if (!currentParticipant) return;
 
-    const completed = {
+    const completed: Participant = {
       ...currentParticipant,
       nombre,
       email,
@@ -103,11 +130,51 @@ export default function EligoApp() {
       lifeStage: inferLifeStage(currentParticipant),
     };
 
-    setParticipants([...participants, completed]);
-    setCurrentParticipant(null);
-    setCurrentQuestion(0);
-    setShowContactForm(false);
+    try {
+      const { error } = await supabase.from('participants').insert([
+        {
+          nombre: completed.nombre,
+          email: completed.email,
+          telefono: completed.telefono,
+          q1_dias: completed.q1_dias,
+          q2_cambios: completed.q2_cambios,
+          q3_sabeHacer: completed.q3_sabeHacer,
+          q4_enseniar: completed.q4_enseniar,
+          q5_pendiente: completed.q5_pendiente,
+          q6_confianza: completed.q6_confianza,
+          q7_organiza: completed.q7_organiza,
+          q8_busca: completed.q8_busca,
+          q9_movimiento: completed.q9_movimiento,
+          q10_restricciones: completed.q10_restricciones,
+          valores: completed.valores,
+          lifeStage: completed.lifeStage,
+          completado: true,
+        },
+      ]);
+
+      if (error) throw error;
+
+      await loadParticipantsFromSupabase();
+
+      setCurrentParticipant(null);
+      setCurrentQuestion(0);
+      setShowContactForm(false);
+    } catch (error) {
+      console.error('Error saving to Supabase:', error);
+      alert('Hubo un error al guardar. Intenta de nuevo.');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+          <p className="text-amber-700">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (currentTab === 'cuestionario' && currentParticipant) {
     return (
@@ -129,7 +196,6 @@ export default function EligoApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
-      {/* Header */}
       <header className="border-b border-amber-200 bg-white/60 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl px-6 py-6">
           <div className="flex items-center justify-between">
@@ -175,13 +241,12 @@ export default function EligoApp() {
         </div>
       </header>
 
-      {/* Content */}
       <main className="mx-auto max-w-5xl px-6 py-12">
         {currentTab === 'cuestionario' && (
           <CuestionarioHome
             onStart={startNewParticipant}
             participantCount={participants.length}
-            completedCount={participants.filter((p) => p.completado).length}
+            completedCount={participants.length}
           />
         )}
         {currentTab === 'dashboard' && <DashboardView participants={participants} />}
@@ -190,10 +255,6 @@ export default function EligoApp() {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// QUESTIONNAIRE HOME
-// ─────────────────────────────────────────────────────────────
 
 function CuestionarioHome({
   onStart,
@@ -206,7 +267,6 @@ function CuestionarioHome({
 }) {
   return (
     <div className="space-y-8">
-      {/* Intro */}
       <div className="rounded-2xl bg-white p-8 border border-amber-200">
         <h2 className="text-2xl font-serif font-bold text-amber-900 mb-3">Cuéntanos tu historia</h2>
         <p className="text-amber-800 leading-relaxed mb-4">
@@ -226,12 +286,11 @@ function CuestionarioHome({
         </button>
       </div>
 
-      {/* Stats */}
       {participantCount > 0 && (
         <div className="grid grid-cols-2 gap-4">
           <div className="rounded-xl bg-white p-6 border border-amber-200">
             <div className="text-3xl font-bold text-amber-600">{participantCount}</div>
-            <p className="text-sm text-amber-800 mt-1">Cuestionarios iniciados</p>
+            <p className="text-sm text-amber-800 mt-1">Personas respondieron</p>
           </div>
           <div className="rounded-xl bg-white p-6 border border-amber-200">
             <div className="text-3xl font-bold text-green-600">{completedCount}</div>
@@ -239,36 +298,9 @@ function CuestionarioHome({
           </div>
         </div>
       )}
-
-      {/* Cómo funciona */}
-      <div className="rounded-2xl bg-white p-8 border border-amber-200">
-        <h3 className="text-lg font-serif font-bold text-amber-900 mb-4">Cómo funciona</h3>
-        <ul className="space-y-3 text-amber-800">
-          <li className="flex gap-3">
-            <span className="font-bold text-amber-600">1.</span>
-            <span>Responde 10 preguntas sobre tu vida, lo que sabes, y lo que buscas.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-bold text-amber-600">2.</span>
-            <span>Nos ayudas con algunos datos de contacto.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-bold text-amber-600">3.</span>
-            <span>Nos comunicamos contigo para conocerte mejor en una llamada.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-bold text-amber-600">4.</span>
-            <span>Te conectamos con gente que comparta valores contigo.</span>
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// QUESTIONNAIRE VIEW
-// ─────────────────────────────────────────────────────────────
 
 const QUESTIONS = [
   {
@@ -392,7 +424,6 @@ function QuestionnaireView({
         onSubmit={saveContact}
         onBack={() => {
           setCurrentQuestion(currentQuestion - 1);
-          // Dar opción de volver
         }}
       />
     );
@@ -400,7 +431,6 @@ function QuestionnaireView({
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-amber-700">
@@ -422,7 +452,6 @@ function QuestionnaireView({
         </div>
       </div>
 
-      {/* Question */}
       <div className="bg-white rounded-2xl p-8 border border-amber-200 mb-6">
         <h3 className="text-2xl font-serif font-bold text-amber-900 mb-2">{q.title}</h3>
         {q.subtitle && <p className="text-amber-700 mb-6">{q.subtitle}</p>}
@@ -453,13 +482,11 @@ function QuestionnaireView({
           />
         )}
 
-        {/* Optional indicator for q10 */}
         {currentQuestion === 9 && (
           <p className="text-xs text-amber-600 mt-3">* Opcional. Puedes dejar esto en blanco.</p>
         )}
       </div>
 
-      {/* Navigation */}
       <div className="flex justify-between items-center">
         <button
           onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
@@ -501,10 +528,6 @@ function QuestionnaireView({
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// CONTACT FORM
-// ─────────────────────────────────────────────────────────────
 
 function ContactFormView({ onSubmit, onBack }: any) {
   const [nombre, setNombre] = useState('');
@@ -590,10 +613,6 @@ function ContactFormView({ onSubmit, onBack }: any) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// DASHBOARD VIEW — MATCHING (MEJORADO VISUALMENTE)
-// ─────────────────────────────────────────────────────────────
-
 interface Match {
   id1: string;
   id2: string;
@@ -622,7 +641,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="text-center">
         <h2 className="text-3xl font-serif font-bold text-amber-900 mb-2">Compatibilidades Automáticas</h2>
         <p className="text-amber-700 text-lg">
@@ -630,7 +648,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-amber-600 text-white rounded-xl p-6 text-center">
           <div className="text-3xl font-bold">{completed.length}</div>
@@ -648,7 +665,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
         </div>
       </div>
 
-      {/* Matches Grid */}
       {topMatches.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 border border-amber-200 text-center">
           <p className="text-amber-600 font-medium">Necesitamos al menos 2 participantes para calcular compatibilidades.</p>
@@ -656,11 +672,10 @@ function DashboardView({ participants }: { participants: Participant[] }) {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {topMatches.map((match) => {
-            // Alterna colores: terracota, aqua, café (basado en score)
             const colors = [
-              'bg-red-700', // terracota
-              'bg-blue-500', // aqua
-              'bg-amber-900', // café oscuro
+              'bg-red-700',
+              'bg-blue-500',
+              'bg-amber-900',
             ];
             const scoreIndex = Math.floor(match.score / 30) % 3;
             const bgColor = colors[scoreIndex];
@@ -671,7 +686,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
                 key={`${match.id1}-${match.id2}`}
                 className={`${bgColor} rounded-2xl p-8 shadow-lg hover:shadow-xl transition`}
               >
-                {/* Header */}
                 <div className="flex items-start justify-between mb-6">
                   <div>
                     <h3 className={`text-2xl font-serif font-bold ${textLight} mb-1`}>
@@ -694,7 +708,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
                   </div>
                 </div>
 
-                {/* Progress Bar */}
                 <div className={`h-2 rounded-full ${bgColor === 'bg-blue-500' ? 'bg-blue-600' : 'bg-white/30'} mb-6 overflow-hidden`}>
                   <div
                     className={`h-full ${bgColor === 'bg-blue-500' ? 'bg-blue-200' : 'bg-white'}`}
@@ -702,7 +715,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
                   />
                 </div>
 
-                {/* Reasons */}
                 <div className="space-y-3">
                   {match.reasons.map((reason, i) => (
                     <div key={i} className="flex gap-3">
@@ -717,7 +729,6 @@ function DashboardView({ participants }: { participants: Participant[] }) {
         </div>
       )}
 
-      {/* Participantes Section */}
       <div className="bg-white rounded-2xl p-8 border border-amber-200">
         <h3 className="text-2xl font-serif font-bold text-amber-900 mb-6">
           Quiénes Respondieron ({completed.length})
@@ -742,27 +753,9 @@ function DashboardView({ participants }: { participants: Participant[] }) {
           ))}
         </div>
       </div>
-
-      {/* Export */}
-      <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-2xl p-8 border border-amber-300">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-serif font-bold text-amber-900 mb-1">Exportar Datos</h3>
-            <p className="text-amber-700 text-sm">Descarga los resultados del matching para análisis</p>
-          </div>
-          <button className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition">
-            <Download size={18} />
-            Descargar
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// CONCIERGE VIEW — IAR
-// ─────────────────────────────────────────────────────────────
 
 function ConciergeView({ participants }: { participants: Participant[] }) {
   const completed = participants.filter((p) => p.completado);
@@ -800,7 +793,6 @@ function ConciergeView({ participants }: { participants: Participant[] }) {
                 </button>
               </div>
 
-              {/* Placeholder para IAR (se completa en llamada) */}
               <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-amber-600">
                 <p>Índice de Activación Relacional: <span className="font-medium italic">Pendiente de llamada</span></p>
                 <p>Playbook asignado: —</p>
@@ -813,29 +805,21 @@ function ConciergeView({ participants }: { participants: Participant[] }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────
-
 function extractValues(participant: Participant): string[] {
   const valores: string[] = [];
 
-  // Pregunta 4: enseñanza → legado
   if (participant.q4_enseniar && participant.q4_enseniar.length > 10) {
     valores.push('legado');
   }
 
-  // Pregunta 5: pendiente → reinvención
   if (participant.q5_pendiente && participant.q5_pendiente.length > 10) {
     valores.push('reinvención');
   }
 
-  // Pregunta 7: organización → liderazgo/propósito
   if (participant.q7_organiza && participant.q7_organiza.toLowerCase().includes('sí')) {
     valores.push('liderazgo');
   }
 
-  // Pregunta 8: busca
   if (participant.q8_busca === 'gente') valores.push('pertenencia');
   if (participant.q8_busca === 'construir') valores.push('propósito');
   if (participant.q8_busca === 'aprender') valores.push('crecimiento');
@@ -845,7 +829,6 @@ function extractValues(participant: Participant): string[] {
 }
 
 function inferLifeStage(participant: Participant): string {
-  // Heurística simple basada en cambios recientes y búsqueda
   const cambiosRecientes = participant.q2_cambios.length > 20;
   const busca = participant.q8_busca;
 
@@ -871,8 +854,8 @@ function computeMatches(participants: Participant[]): Match[] {
 
       if (score > 30) {
         matches.push({
-          id1: p1.id,
-          id2: p2.id,
+          id1: p1.id || '',
+          id2: p2.id || '',
           name1: p1.nombre || 'P' + i,
           name2: p2.nombre || 'P' + j,
           score,
@@ -888,13 +871,11 @@ function computeMatches(participants: Participant[]): Match[] {
 function calculateMatchScore(p1: Participant, p2: Participant): number {
   let score = 0;
 
-  // Valores compartidos
   const vals1 = p1.valores || [];
   const vals2 = p2.valores || [];
   const sharedVals = vals1.filter((v) => vals2.includes(v)).length;
   score += sharedVals * 15;
 
-  // Búsquedas complementarias (uno enseña, otro aprende)
   if (
     (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
     (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
@@ -902,12 +883,10 @@ function calculateMatchScore(p1: Participant, p2: Participant): number {
     score += 20;
   }
 
-  // Life stage similar
   if (p1.lifeStage === p2.lifeStage) {
     score += 10;
   }
 
-  // Banda de movimiento compatible (ambos con restricciones o ambos sin)
   const p1LowMobility = ['cortas', 'accesible'].includes(p1.q9_movimiento);
   const p2LowMobility = ['cortas', 'accesible'].includes(p2.q9_movimiento);
   if (p1LowMobility === p2LowMobility) {
