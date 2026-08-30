@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, Save, Download, Eye, BarChart3, Settings } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Save, Eye, BarChart3, Settings } from 'lucide-react';
 
 // Importar Supabase
 import { createClient } from '@supabase/supabase-js';
