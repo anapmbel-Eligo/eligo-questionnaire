@@ -21,6 +21,7 @@ interface Participant {
   nombre?: string;
   email?: string;
   telefono?: string;
+  // Respuestas abiertas
   q1_dias: string;
   q2_cambios: string;
   q3_sabeHacer: string;
@@ -28,9 +29,15 @@ interface Participant {
   q5_pendiente: string;
   q6_confianza: string;
   q7_organiza: string;
-  q8_busca: 'gente' | 'construir' | 'aprender' | 'compartir' | '';
-  q9_movimiento: 'cualquiera' | 'sentarse' | 'cortas' | 'accesible' | '';
+  // Selecciones
+  q8_busca: string;
+  tecnologia: string;
+  ia_interes: string;
+  preocupacion_laboral: string;
+  preocupacion_salud: string;
+  q9_movimiento: string;
   q10_restricciones: string;
+  // Clasificación automática
   valores?: string[];
   lifeStage?: string;
   completado: boolean;
@@ -73,6 +80,10 @@ export default function EligoApp() {
         q6_confianza: row.q6_confianza || '',
         q7_organiza: row.q7_organiza || '',
         q8_busca: row.q8_busca || '',
+        tecnologia: row.tecnologia || '',
+        ia_interes: row.ia_interes || '',
+        preocupacion_laboral: row.preocupacion_laboral || '',
+        preocupacion_salud: row.preocupacion_salud || '',
         q9_movimiento: row.q9_movimiento || '',
         q10_restricciones: row.q10_restricciones || '',
         valores: row.valores || [],
@@ -98,6 +109,10 @@ export default function EligoApp() {
       q6_confianza: '',
       q7_organiza: '',
       q8_busca: '',
+      tecnologia: '',
+      ia_interes: '',
+      preocupacion_laboral: '',
+      preocupacion_salud: '',
       q9_movimiento: '',
       q10_restricciones: '',
       completado: false,
@@ -110,7 +125,7 @@ export default function EligoApp() {
   const saveAndContinue = () => {
     if (!currentParticipant) return;
 
-    if (currentQuestion < 9) {
+    if (currentQuestion < QUESTIONS.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       setShowContactForm(true);
@@ -144,6 +159,10 @@ export default function EligoApp() {
           q6_confianza: completed.q6_confianza,
           q7_organiza: completed.q7_organiza,
           q8_busca: completed.q8_busca,
+          tecnologia: completed.tecnologia,
+          ia_interes: completed.ia_interes,
+          preocupacion_laboral: completed.preocupacion_laboral,
+          preocupacion_salud: completed.preocupacion_salud,
           q9_movimiento: completed.q9_movimiento,
           q10_restricciones: completed.q10_restricciones,
           valores: completed.valores,
@@ -305,7 +324,6 @@ function CuestionarioHome({
 const QUESTIONS = [
   {
     id: 'q1',
-    num: 1,
     title: '¿Cómo son tus días ahora?',
     subtitle: 'No hay respuesta correcta. Cuéntanos lo que haces normalmente, aunque te parezca poco interesante.',
     placeholder: 'Me levanto temprano, casi siempre...',
@@ -313,7 +331,6 @@ const QUESTIONS = [
   },
   {
     id: 'q2',
-    num: 2,
     title: '¿Qué ha cambiado en tu vida en los últimos años?',
     subtitle: 'Puede ser algo grande o algo pequeño. Un trabajo, una casa, una persona, una costumbre.',
     placeholder: 'Hace unos años...',
@@ -321,7 +338,6 @@ const QUESTIONS = [
   },
   {
     id: 'q3',
-    num: 3,
     title: '¿Qué sabes hacer bien?',
     subtitle: 'Algo de tu trabajo, de tu casa, de tus manos, de tratar con la gente. Lo que sea.',
     placeholder: 'Se me da bien...',
@@ -329,7 +345,6 @@ const QUESTIONS = [
   },
   {
     id: 'q4',
-    num: 4,
     title: '¿Hay algo que sabes y que te gustaría que alguien más aprendiera?',
     subtitle: 'Algo que te daría un poco de lástima que se perdiera.',
     placeholder: 'Me gustaría que alguien supiera...',
@@ -337,7 +352,6 @@ const QUESTIONS = [
   },
   {
     id: 'q5',
-    num: 5,
     title: '¿Hay algo que te quedaste con ganas de hacer?',
     subtitle: 'Puede ser de hace mucho o de hace poco. Algo que sigue ahí.',
     placeholder: 'Siempre quise...',
@@ -345,15 +359,13 @@ const QUESTIONS = [
   },
   {
     id: 'q6',
-    num: 6,
-    title: '¿Piensa en alguien con quien te sientes en confianza. ¿Qué tiene esa persona?',
+    title: 'Piensa en alguien con quien te sientes en confianza. ¿Qué tiene esa persona?',
     subtitle: 'No hace falta decir quién es.',
     placeholder: 'Es alguien que...',
     field: 'q6_confianza' as const,
   },
   {
     id: 'q7',
-    num: 7,
     title: '¿Te ha tocado ser la persona que organiza?',
     subtitle: 'Una comida, un viaje, una colecta, un grupo, una fiesta. Sin importar si salió bien.',
     placeholder: 'Sí, una vez... / La verdad no, siempre...',
@@ -361,39 +373,90 @@ const QUESTIONS = [
   },
   {
     id: 'q8',
-    num: 8,
     title: '¿Qué buscas más en este momento?',
     type: 'select',
     field: 'q8_busca' as const,
     options: [
       { value: 'gente', label: 'Gente con quien contar' },
       { value: 'construir', label: 'Construir algo con otros' },
+      { value: 'conocer', label: 'Conocer gente nueva' },
       { value: 'aprender', label: 'Aprender cosas nuevas' },
       { value: 'compartir', label: 'Compartir lo que sé' },
     ],
   },
   {
     id: 'q9',
-    num: 9,
+    title: '¿Qué tanto interactúas con la tecnología?',
+    type: 'select',
+    field: 'tecnologia' as const,
+    options: [
+      { value: 'avanzado', label: 'Automatizo y converso todo el día con IA' },
+      { value: 'ia_puntual', label: 'Uso IA solo para cosas puntuales' },
+      { value: 'digital_sin_ia', label: 'No uso IA, pero domino las redes sociales y otras aplicaciones digitales' },
+      { value: 'poco_digital', label: 'Casi no interactúo con lo digital, solo para cuestiones puntuales' },
+      { value: 'analogico', label: 'No uso nunca la tecnología digital. Soy 100% analógico' },
+    ],
+  },
+  {
+    id: 'q10',
+    title: '¿Qué tanto estarías dispuesto/a a aprender a usar más Inteligencia Artificial en tu día a día por tu cuenta?',
+    type: 'select',
+    field: 'ia_interes' as const,
+    options: [
+      { value: 'muy_alto', label: 'Altamente interesado/a, estoy tomando cursos y aprendiendo por mi cuenta' },
+      { value: 'interesado', label: 'Me interesa pero no es mi prioridad ahora' },
+      { value: 'asistido', label: 'Me interesa solo si alguien me lo resuelve' },
+      { value: 'esceptico', label: 'No le encuentro valor, pero estoy dispuesto/a a escuchar' },
+      { value: 'nulo', label: 'No me interesa nada' },
+    ],
+  },
+  {
+    id: 'q11',
+    title: '¿Qué te importa de lo que haces hoy con tu tiempo de trabajo?',
+    subtitle: 'Puede que sigas trabajando, que hayas parado, o que estés en medio. Cualquiera está bien.',
+    type: 'select',
+    field: 'preocupacion_laboral' as const,
+    options: [
+      { value: 'vigencia', label: 'Seguir vigente' },
+      { value: 'cognitivo', label: 'Seguir usando mi cabeza' },
+      { value: 'ingresos', label: 'Generar ingresos' },
+      { value: 'na', label: 'Ahorita eso no es tema para mí' },
+    ],
+  },
+  {
+    id: 'q12',
+    title: '¿Hay algo de tu salud que tengas presente estos días?',
+    subtitle: 'No necesitas dar detalles. Solo nos ayuda a no invitarte a algo que no te caiga bien.',
+    type: 'select',
+    field: 'preocupacion_salud' as const,
+    options: [
+      { value: 'fisica', label: 'Lo físico' },
+      { value: 'emocional', label: 'Lo emocional' },
+      { value: 'ambas', label: 'Las dos cosas' },
+      { value: 'na', label: 'Nada en particular' },
+    ],
+  },
+  {
+    id: 'q13',
     title: '¿Qué tipo de plan te acomoda?',
     subtitle: 'Para no invitarte a algo que no te acomode.',
     type: 'select',
     field: 'q9_movimiento' as const,
     options: [
-      { value: 'cualquiera', label: 'Le entro a lo que sea — caminar, subir escaleras, estar de pie un buen rato' },
+      { value: 'cualquiera', label: 'Le entro a lo que sea — cualquier evento con movimiento' },
+      { value: 'moderado', label: 'Variedad de eventos pero con movimiento moderado' },
       { value: 'sentarse', label: 'Camino bien, pero prefiero que haya dónde sentarse' },
-      { value: 'cortas', label: 'Distancias cortas y sin muchas escaleras' },
       { value: 'accesible', label: 'Uso bastón, andadera o silla — necesito rampa y baño accesible' },
+      { value: 'cuidador', label: 'Soy dependiente de un cuidador' },
     ],
   },
   {
-    id: 'q10',
-    num: 10,
+    id: 'q14',
     title: '¿Hay algo que debamos tomar en cuenta para que un plan te funcione?',
-    subtitle:
-      'Horarios, traslados, alguien a quien cuidas, algo de salud, lo que sea. Puedes saltarte esta.',
+    subtitle: 'Horarios, traslados, alguien a quien cuidas, algo de salud, lo que sea. Puedes saltarte esta.',
     placeholder: 'Los martes no puedo porque... / Después de las seis ya no...',
     field: 'q10_restricciones' as const,
+    optional: true,
   },
 ];
 
@@ -408,7 +471,7 @@ function QuestionnaireView({
   onBack,
 }: any) {
   const q = QUESTIONS[currentQuestion];
-  const isAnswered = participant[q.field] || false;
+  const isAnswered = Boolean(participant[q.field]) || Boolean((q as any).optional);
 
   const handleInputChange = (value: string) => {
     setParticipant({ ...participant, [q.field]: value });
@@ -482,7 +545,7 @@ function QuestionnaireView({
           />
         )}
 
-        {currentQuestion === 9 && (
+        {(q as any).optional && (
           <p className="text-xs text-amber-600 mt-3">* Opcional. Puedes dejar esto en blanco.</p>
         )}
       </div>
@@ -502,13 +565,13 @@ function QuestionnaireView({
         </button>
 
         <div className="text-sm text-amber-600">
-          {isAnswered ? (
+          {participant[q.field] ? (
             <span className="flex items-center gap-1">
               <Save size={16} />
               Guardado
             </span>
           ) : (
-            <span>Cuéntanos algo para continuar</span>
+            <span>{(q as any).optional ? 'Puedes continuar' : 'Cuéntanos algo para continuar'}</span>
           )}
         </div>
 
@@ -822,6 +885,7 @@ function extractValues(participant: Participant): string[] {
 
   if (participant.q8_busca === 'gente') valores.push('pertenencia');
   if (participant.q8_busca === 'construir') valores.push('propósito');
+  if (participant.q8_busca === 'conocer') valores.push('apertura');
   if (participant.q8_busca === 'aprender') valores.push('crecimiento');
   if (participant.q8_busca === 'compartir') valores.push('contribución');
 
@@ -835,7 +899,7 @@ function inferLifeStage(participant: Participant): string {
   if (cambiosRecientes && (busca === 'construir' || busca === 'compartir')) {
     return 'transición_activa';
   }
-  if (busca === 'aprender' || busca === 'gente') {
+  if (busca === 'aprender' || busca === 'gente' || busca === 'conocer') {
     return 'reactivacion';
   }
   return 'estable';
@@ -868,6 +932,9 @@ function computeMatches(participants: Participant[]): Match[] {
   return matches;
 }
 
+const TECH_FUERTE = ['avanzado', 'ia_puntual'];
+const QUIERE_APRENDER_IA = ['muy_alto', 'interesado', 'asistido'];
+
 function calculateMatchScore(p1: Participant, p2: Participant): number {
   let score = 0;
 
@@ -883,13 +950,20 @@ function calculateMatchScore(p1: Participant, p2: Participant): number {
     score += 20;
   }
 
+  if (
+    (TECH_FUERTE.includes(p1.tecnologia) && QUIERE_APRENDER_IA.includes(p2.ia_interes) && !TECH_FUERTE.includes(p2.tecnologia)) ||
+    (TECH_FUERTE.includes(p2.tecnologia) && QUIERE_APRENDER_IA.includes(p1.ia_interes) && !TECH_FUERTE.includes(p1.tecnologia))
+  ) {
+    score += 15;
+  }
+
   if (p1.lifeStage === p2.lifeStage) {
     score += 10;
   }
 
-  const p1LowMobility = ['cortas', 'accesible'].includes(p1.q9_movimiento);
-  const p2LowMobility = ['cortas', 'accesible'].includes(p2.q9_movimiento);
-  if (p1LowMobility === p2LowMobility) {
+  const p1Baja = ['accesible', 'cuidador'].includes(p1.q9_movimiento);
+  const p2Baja = ['accesible', 'cuidador'].includes(p2.q9_movimiento);
+  if (p1Baja === p2Baja) {
     score += 5;
   }
 
@@ -911,7 +985,14 @@ function generateMatchReasons(p1: Participant, p2: Participant): string[] {
     (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
     (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
   ) {
-    reasons.push(`Uno quiere compartir conocimiento, el otro está interesado en aprender`);
+    reasons.push('Uno quiere compartir conocimiento, el otro está interesado en aprender');
+  }
+
+  if (
+    (TECH_FUERTE.includes(p1.tecnologia) && QUIERE_APRENDER_IA.includes(p2.ia_interes) && !TECH_FUERTE.includes(p2.tecnologia)) ||
+    (TECH_FUERTE.includes(p2.tecnologia) && QUIERE_APRENDER_IA.includes(p1.ia_interes) && !TECH_FUERTE.includes(p1.tecnologia))
+  ) {
+    reasons.push('Uno se mueve bien con la tecnología, el otro tiene ganas de aprenderla');
   }
 
   if (p1.lifeStage === p2.lifeStage && p1.lifeStage) {
