@@ -728,9 +728,16 @@ function DashboardView({ participants }: { participants: Participant[] }) {
         </div>
       </div>
 
+      {completed.length < 8 && (
+        <div className="bg-amber-100 border border-amber-300 rounded-xl p-4 text-sm text-amber-900">
+          Con menos de ocho respuestas estos porcentajes son poco informativos. El sistema calcula qué tan raro
+          es cada valor comparando a las personas entre sí, y con pocas todavía no tiene con qué comparar.
+        </div>
+      )}
+
       {topMatches.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 border border-amber-200 text-center">
-          <p className="text-amber-600 font-medium">Necesitamos al menos 2 participantes para calcular compatibilidades.</p>
+          <p className="text-amber-600 font-medium">Todavía no hay pares que pasen el umbral de compatibilidad.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -803,9 +810,9 @@ function DashboardView({ participants }: { participants: Participant[] }) {
               <p className="text-xs text-amber-700 mt-2">
                 <span className="font-medium">Busca:</span> {p.q8_busca}
               </p>
-              {p.valores && p.valores.length > 0 && (
+              {extractValues(p).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {p.valores.map((valor, i) => (
+                  {extractValues(p).map((valor, i) => (
                     <span key={i} className="text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded-full font-medium">
                       {valor}
                     </span>
@@ -868,27 +875,50 @@ function ConciergeView({ participants }: { participants: Participant[] }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// VALORES
+// Se extraen de LO QUE la persona escribió, no de CUÁNTO escribió.
+// Cada lista es editable: si un valor no se está detectando bien,
+// se le agregan o quitan señales aquí.
+// ─────────────────────────────────────────────────────────────
+
+const SENALES: Record<string, string[]> = {
+  transmisión: ['enseñ', 'ensen', 'aprendiera', 'se pierda', 'perdiera', 'que alguien sepa', 'heredar',
+                'transmitir', 'ya nadie', 'casi nadie lo sabe', 'se acaba conmigo', 'se está perdiendo',
+                'se esta perdiendo', 'clases', 'alumn'],
+  oficio: ['manos', 'arreglar', 'reparar', 'construir', 'coser', 'tejer', 'amasar', 'herramient', 'taller', 'obra'],
+  cuidado: ['cuidar', 'cuido', 'acompañ', 'acompan', 'escuchar', 'paciencia', 'calmar', 'estar con', 'apoyo'],
+  reinvención: ['siempre quise', 'me quedé con ganas', 'me quede con ganas', 'quería ', 'queria ',
+                'quiero aprender', 'nunca he', 'me gustaría aprender', 'me gustaria aprender', 'ganas de'],
+  liderazgo: ['organicé', 'organice', 'coordiné', 'coordine', 'dirigí', 'dirigi', 'fui jefe', 'fui president',
+              'fui coordinador', 'fui tesorero', 'me toca organizar', 'me tocaba organizar', 'armé ', 'arme ', 'fui socio'],
+  transición: ['murió', 'murio', 'enviudé', 'enviude', 'viuda', 'viudo', 'me jubilé', 'me jubile',
+               'me retiré', 'me retire', 'cerré', 'cerre', 'me separé', 'me separe', 'me divorcié', 'me divorcie',
+               'se fue a vivir', 'me mudé', 'me mude', 'vendí', 'vendi', 'me operaron', 'infarto', 'me corrieron'],
+  creación: ['escribir', 'pintar', 'tocar', 'grabar', 'cantar', 'componer', 'exposición', 'exposicion',
+             'disco', 'libro', 'canal'],
+  curiosidad: ['leo', 'leer', 'estudiar', 'curso', 'investigar', 'aprendiendo', 'ajedrez'],
+};
+
+const VALOR_POR_BUSQUEDA: Record<string, string> = {
+  gente: 'pertenencia',
+  construir: 'propósito',
+  conocer: 'apertura',
+  aprender: 'crecimiento',
+  compartir: 'contribución',
+};
+
+function textoAbierto(p: Participant): string {
+  return [p.q1_dias, p.q2_cambios, p.q3_sabeHacer, p.q4_enseniar, p.q5_pendiente, p.q6_confianza, p.q7_organiza]
+    .join(' ')
+    .toLowerCase();
+}
+
 function extractValues(participant: Participant): string[] {
-  const valores: string[] = [];
-
-  if (participant.q4_enseniar && participant.q4_enseniar.length > 10) {
-    valores.push('legado');
-  }
-
-  if (participant.q5_pendiente && participant.q5_pendiente.length > 10) {
-    valores.push('reinvención');
-  }
-
-  if (participant.q7_organiza && participant.q7_organiza.toLowerCase().includes('sí')) {
-    valores.push('liderazgo');
-  }
-
-  if (participant.q8_busca === 'gente') valores.push('pertenencia');
-  if (participant.q8_busca === 'construir') valores.push('propósito');
-  if (participant.q8_busca === 'conocer') valores.push('apertura');
-  if (participant.q8_busca === 'aprender') valores.push('crecimiento');
-  if (participant.q8_busca === 'compartir') valores.push('contribución');
-
+  const txt = textoAbierto(participant);
+  const valores = Object.keys(SENALES).filter((v) => SENALES[v].some((s) => txt.includes(s)));
+  const porBusqueda = VALOR_POR_BUSQUEDA[participant.q8_busca];
+  if (porBusqueda) valores.push(porBusqueda);
   return Array.from(new Set(valores));
 }
 
@@ -905,21 +935,42 @@ function inferLifeStage(participant: Participant): string {
   return 'estable';
 }
 
+// ─────────────────────────────────────────────────────────────
+// MATCHING
+// Principio: lo escaso vale más que lo común. El peso de un valor
+// compartido lo decide qué tan raro es ese valor entre todos los
+// participantes, y se recalcula solo conforme entran respuestas.
+// ─────────────────────────────────────────────────────────────
+
+const UMBRAL = 55;
+const TECH_FUERTE = ['avanzado', 'ia_puntual'];
+const QUIERE_APRENDER_IA = ['muy_alto', 'interesado', 'asistido'];
+const MOVILIDAD_BAJA = ['accesible', 'cuidador'];
+
 function computeMatches(participants: Participant[]): Match[] {
+  const n = participants.length;
+
+  // Valores de cada persona y qué tan frecuente es cada valor
+  const valoresPor: string[][] = participants.map((p) => extractValues(p));
+  const frecuencia: Record<string, number> = {};
+  valoresPor.forEach((vs) => vs.forEach((v) => { frecuencia[v] = (frecuencia[v] || 0) + 1; }));
+
+  // Un valor que casi todos comparten pesa poco; uno raro pesa mucho.
+  // El +5 evita que con muy pocas respuestas todo valga cero.
+  const peso = (v: string) => Math.max(3, 25 * (1 - (frecuencia[v] || 0) / (n + 5)));
+
   const matches: Match[] = [];
 
-  for (let i = 0; i < participants.length; i++) {
-    for (let j = i + 1; j < participants.length; j++) {
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
       const p1 = participants[i];
       const p2 = participants[j];
+      const { score, reasons } = evaluarPar(p1, p2, valoresPor[i], valoresPor[j], peso);
 
-      const score = calculateMatchScore(p1, p2);
-      const reasons = generateMatchReasons(p1, p2);
-
-      if (score > 30) {
+      if (score >= UMBRAL) {
         matches.push({
-          id1: p1.id || '',
-          id2: p2.id || '',
+          id1: p1.id || String(i),
+          id2: p2.id || String(j),
           name1: p1.nombre || 'P' + i,
           name2: p2.nombre || 'P' + j,
           score,
@@ -932,72 +983,55 @@ function computeMatches(participants: Participant[]): Match[] {
   return matches;
 }
 
-const TECH_FUERTE = ['avanzado', 'ia_puntual'];
-const QUIERE_APRENDER_IA = ['muy_alto', 'interesado', 'asistido'];
-
-function calculateMatchScore(p1: Participant, p2: Participant): number {
+function evaluarPar(
+  p1: Participant,
+  p2: Participant,
+  v1: string[],
+  v2: string[],
+  peso: (v: string) => number
+): { score: number; reasons: string[] } {
   let score = 0;
-
-  const vals1 = p1.valores || [];
-  const vals2 = p2.valores || [];
-  const sharedVals = vals1.filter((v) => vals2.includes(v)).length;
-  score += sharedVals * 15;
-
-  if (
-    (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
-    (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
-  ) {
-    score += 20;
-  }
-
-  if (
-    (TECH_FUERTE.includes(p1.tecnologia) && QUIERE_APRENDER_IA.includes(p2.ia_interes) && !TECH_FUERTE.includes(p2.tecnologia)) ||
-    (TECH_FUERTE.includes(p2.tecnologia) && QUIERE_APRENDER_IA.includes(p1.ia_interes) && !TECH_FUERTE.includes(p1.tecnologia))
-  ) {
-    score += 15;
-  }
-
-  if (p1.lifeStage === p2.lifeStage) {
-    score += 10;
-  }
-
-  const p1Baja = ['accesible', 'cuidador'].includes(p1.q9_movimiento);
-  const p2Baja = ['accesible', 'cuidador'].includes(p2.q9_movimiento);
-  if (p1Baja === p2Baja) {
-    score += 5;
-  }
-
-  return Math.min(score, 100);
-}
-
-function generateMatchReasons(p1: Participant, p2: Participant): string[] {
   const reasons: string[] = [];
 
-  const vals1 = p1.valores || [];
-  const vals2 = p2.valores || [];
-  const shared = vals1.filter((v) => vals2.includes(v));
-
-  if (shared.length > 0) {
-    reasons.push(`Ambos valoran: ${shared.join(', ')}`);
+  // Valores compartidos, ponderados por rareza
+  const compartidos = v1.filter((v) => v2.includes(v)).sort((a, b) => peso(b) - peso(a));
+  compartidos.forEach((v) => { score += peso(v); });
+  if (compartidos.length > 0) {
+    reasons.push(`Ambos: ${compartidos.slice(0, 3).join(', ')}`);
   }
 
+  // Complementariedad: enseñar / aprender — lo más escaso y lo más valioso
   if (
     (p1.q8_busca === 'compartir' && p2.q8_busca === 'aprender') ||
     (p2.q8_busca === 'compartir' && p1.q8_busca === 'aprender')
   ) {
-    reasons.push('Uno quiere compartir conocimiento, el otro está interesado en aprender');
+    score += 30;
+    reasons.push('Uno quiere compartir lo que sabe, el otro quiere aprender');
   }
 
-  if (
-    (TECH_FUERTE.includes(p1.tecnologia) && QUIERE_APRENDER_IA.includes(p2.ia_interes) && !TECH_FUERTE.includes(p2.tecnologia)) ||
-    (TECH_FUERTE.includes(p2.tecnologia) && QUIERE_APRENDER_IA.includes(p1.ia_interes) && !TECH_FUERTE.includes(p1.tecnologia))
-  ) {
+  // Complementariedad: quien domina la tecnología / quien quiere aprenderla
+  const comp1 = TECH_FUERTE.includes(p1.tecnologia) && QUIERE_APRENDER_IA.includes(p2.ia_interes) && !TECH_FUERTE.includes(p2.tecnologia);
+  const comp2 = TECH_FUERTE.includes(p2.tecnologia) && QUIERE_APRENDER_IA.includes(p1.ia_interes) && !TECH_FUERTE.includes(p1.tecnologia);
+  if (comp1 || comp2) {
+    score += 25;
     reasons.push('Uno se mueve bien con la tecnología, el otro tiene ganas de aprenderla');
   }
 
-  if (p1.lifeStage === p2.lifeStage && p1.lifeStage) {
-    reasons.push(`Similar momento de vida: ${p1.lifeStage.replace('_', ' ')}`);
+  // Momento de vida parecido: señal débil, peso pequeño
+  const ls1 = inferLifeStage(p1);
+  const ls2 = inferLifeStage(p2);
+  if (ls1 === ls2) score += 8;
+
+  // Accesibilidad: juntarlos mal es un problema real, no solo una falta de puntos
+  const baja1 = MOVILIDAD_BAJA.includes(p1.q9_movimiento);
+  const baja2 = MOVILIDAD_BAJA.includes(p2.q9_movimiento);
+  if (baja1 !== baja2) {
+    score -= 12;
+    reasons.push('Ojo: necesitan planes con accesibilidad distinta');
+  } else if (baja1) {
+    score += 6;
+    reasons.push('Mismas necesidades de accesibilidad');
   }
 
-  return reasons;
+  return { score: Math.max(0, Math.min(100, Math.round(score))), reasons };
 }
